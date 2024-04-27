@@ -7,14 +7,32 @@ import (
 //    "strings"
 //    "log"
 
-//    "github.com/charmbracelet/bubbles/textinput"
+    "github.com/charmbracelet/bubbles/textinput"
     tea "github.com/charmbracelet/bubbletea"
-//    "github.com/charmbracelet/lipgloss"
+    "github.com/charmbracelet/lipgloss"
+)
+
+type (
+    errMsg error
 )
 
 //program consts
 const (
     present int = 1950
+    
+    lightGrey 	= lipgloss.Color("#949494")
+    dullRed	= lipgloss.Color("#bc3838")
+)
+
+const (
+    dateIn = iota
+    systemIn
+)
+
+var (
+    headerStyle	= lipgloss.NewStyle().Foreground(lightGrey)
+    inputStyle	= lipgloss.NewStyle().Foreground(dullRed)
+
 )
 
 // The basic date format, stores years before 1950
@@ -34,6 +52,17 @@ type getDate interface {
 //    getBPDate() string
 }
 
+
+// Main function, starts the tea loop
+func main() {
+    p := tea.NewProgram(initialModel())
+    if _, err := p.Run(); err != nil {
+        fmt.Printf("error, please check date format: %v", err)
+	os.Exit(1)
+    }
+}
+
+// Date handelling functions
 func (Date gregDate) getGregDate() string {
     if Date.annoDomini == true {
 	return "AD " + strconv.Itoa(Date.datum)
@@ -76,39 +105,109 @@ func gregorianToDate(gregDate gregDate) date {
     }
 }
 
-func main() {
-    p := tea.NewProgram(initialModel())
-    if _, err := p.Run(); err != nil {
-        fmt.Printf("Alas, there's been an error: %v", err)
-	os.Exit(1)
+// display functions
+func (m *model) nextInput() {
+    m.focused = (m.focused + 1) % len(m.inputs)
+}
+
+func (m *model) prevInput() {
+    m.focused--
+    if m.focused < 0 {
+	m.focused = len(m.inputs) -1
     }
 }
 
 func (m model) Init() tea.Cmd {
-    return nil
+    return textinput.Blink 
 }
 
+// State model
 type model struct {
-    thing string
+    result string
+    focused int
+    inputs []textinput.Model
+    err error
 }
 
+// intial state of model
 func initialModel() model {
-    return model{
-	thing: "text",
+    var inputs []textinput.Model = make([]textinput.Model, 2)
+	inputs[dateIn] = textinput.New()
+	inputs[dateIn].Placeholder = "3800"
+	inputs[dateIn].Focus()
+	inputs[dateIn].CharLimit = 6
+	inputs[dateIn].Width = 8
+	inputs[dateIn].Prompt = ""
+
+	inputs[systemIn] = textinput.New()
+	inputs[systemIn].Placeholder = "BC"
+	inputs[systemIn].Focus()
+	inputs[systemIn].CharLimit = 2
+	inputs[systemIn]. Width = 2
+	inputs[systemIn].Prompt = ""
+
+	var inputDate date = date{dateIn, getSystem(systemIn)}
+
+	return model{
+	    inputs: inputs,
+	    result: "something",
+	    focused: 0,
+	    err: nil,
     }
 }
 
+// Update loop 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    var cmds []tea.Cmd = make([]tea.Cmd, len(m.inputs)) 
+
     switch msg := msg.(type) {
     case tea.KeyMsg:
-	switch msg.String() {
-	case "ctrl+c", "q":
+	switch msg.Type {
+	case tea.KeyEnter:
+	    m.nextInput()
+	case tea.KeyCtrlC, tea.KeyEsc, tea.KeyCtrlQ:
 	    return m, tea.Quit
+	case tea.KeyShiftTab, tea.KeyCtrlP:
+	    m.prevInput()
+	case tea.KeyTab, tea.KeyCtrlN:
+	    m.nextInput()
+	} 
+	for i := range m.inputs {
+	    m.inputs[i].Blur()
 	}
-    } 
-    return m, nil
+	m.inputs[m.focused].Focus()
+
+    case errMsg:
+	m.err = msg
+	return m, nil
+    }
+    for i := range m.inputs {
+	m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
+    }
+    return m, tea.Batch(cmds...)
 }
 
+// This 'renders' renders the UI
 func (m model) View() string {
-    return "something"
+    s := fmt.Sprintf(
+`%s
+
+    %s
+    %s %s
+
+    %s %s
+
+%s
+`,
+	headerStyle.Render("archaeodate"),
+	inputStyle.Render("Enter Date"),
+	m.inputs[dateIn].View(),
+	m.inputs[systemIn].View(),
+	inputStyle.Render("Result:"),
+	m.result,
+	headerStyle.Render("Press Ctrl-q to quit."),
+    ) + "\n"
+
+    //send to UI
+    return s
 }
