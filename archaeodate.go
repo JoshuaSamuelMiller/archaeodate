@@ -35,16 +35,14 @@ var (
 
 )
 
-// The basic date format, stores years before 1950
+// The basic date struct containing a datum and datesystem
+// 	System 	Type
+//	0	BP
+//	1	BC
+//	2	AD
 type date struct {
-    name string
     datum int
-}
-
-type gregDate struct {
-    name string
-    datum int
-    annoDomini bool
+    system int
 }
 
 type getDate interface {
@@ -62,15 +60,6 @@ func main() {
     }
 }
 
-// Date handelling functions
-func (Date gregDate) getGregDate() string {
-    if Date.annoDomini == true {
-	return "AD " + strconv.Itoa(Date.datum)
-    } else {
-	return strconv.Itoa(Date.datum) + " BC"
-    }
-}
-
 func (Date date) getGregDate() string {
     var gregorianDate = Date.datum - present
     if  gregorianDate > 0 {
@@ -85,24 +74,67 @@ func (Date date) getGregDate() string {
     }
 }
 
-func printDate(d getDate) {
-    fmt.Println(d.getGregDate())
+func getSystem(s string) int {
+    switch {
+    case s == "BP", s == "bp", s == "Bp":
+	return 0
+    case s == "BC", s == "bc", s == "Bc", s == "BCE", s == "bce":
+	return 1
+    case s == "AD", s == "ad", s == "Ad", s == "CE", s == "ce":
+	return 2
+    default:
+	return 2
+    }
 }
 
-func gregorianToDate(gregDate gregDate) date {
-    if gregDate.annoDomini == true {
-	var newDatum =  present - gregDate.datum
-	return date{
-	    name: gregDate.name,
-	    datum: newDatum,
-	}
-    } else {
-	var newDatum =  present + gregDate.datum - 1
-	return date{
-	    name: gregDate.name,
-	    datum: newDatum,
-	}
+func printSystem(s int) string {
+    switch {
+    case s == 0:
+	return "BP"
+    case s == 1:
+	return "BC"
+    case s == 2:
+	return "AD"
+    default:
+	return "AD"
     }
+}
+
+func convertDate(d date) date {
+    var newDatum int
+    var newSystem int
+    switch {
+    case d.system == 0:
+	newDatum = d.datum - present
+	switch {
+	case newDatum > 0:
+	    newDatum = newDatum + 1
+	    newSystem = 1
+	case newDatum == 0:
+	    newDatum = newDatum + 1
+	    newSystem = 2
+	case newDatum < 0:
+	    newDatum = - newDatum
+	    newSystem = 2
+	}
+    case d.system == 1:
+	newDatum = d.datum + present - 1
+	newSystem = 0
+    case d.system == 2:
+	newDatum = present - d.datum
+	newSystem = 0
+    }
+    return date{newDatum, newSystem}
+}
+
+func getDatum(s string) int {
+    var newDatum int
+    var err error
+    newDatum, err = strconv.Atoi(s)
+    if err != nil{
+	return 1950 
+    }
+    return newDatum
 }
 
 // display functions
@@ -133,24 +165,24 @@ type model struct {
 func initialModel() model {
     var inputs []textinput.Model = make([]textinput.Model, 2)
 	inputs[dateIn] = textinput.New()
-	inputs[dateIn].Placeholder = "3800"
+	inputs[dateIn].Placeholder = "1950"
 	inputs[dateIn].Focus()
 	inputs[dateIn].CharLimit = 6
 	inputs[dateIn].Width = 8
 	inputs[dateIn].Prompt = ""
 
 	inputs[systemIn] = textinput.New()
-	inputs[systemIn].Placeholder = "BC"
+	inputs[systemIn].Placeholder = "AD"
 	inputs[systemIn].Focus()
 	inputs[systemIn].CharLimit = 2
 	inputs[systemIn]. Width = 2
 	inputs[systemIn].Prompt = ""
 
-	var inputDate date = date{dateIn, getSystem(systemIn)}
+	
 
 	return model{
 	    inputs: inputs,
-	    result: "something",
+	    result: "0 BP",
 	    focused: 0,
 	    err: nil,
     }
@@ -159,6 +191,12 @@ func initialModel() model {
 // Update loop 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     var cmds []tea.Cmd = make([]tea.Cmd, len(m.inputs)) 
+    var inputDate date
+    var outputDate date
+
+    inputDate = date{getDatum(m.inputs[dateIn].Value()), getSystem(m.inputs[systemIn].Value())}
+    outputDate = convertDate(inputDate)
+    m.result = strconv.Itoa(outputDate.datum) + " " + printSystem(outputDate.system)
 
     switch msg := msg.(type) {
     case tea.KeyMsg:
@@ -205,7 +243,7 @@ func (m model) View() string {
 	m.inputs[systemIn].View(),
 	inputStyle.Render("Result:"),
 	m.result,
-	headerStyle.Render("Press Ctrl-q to quit."),
+	headerStyle.Render("Press Esc to quit."),
     ) + "\n"
 
     //send to UI
