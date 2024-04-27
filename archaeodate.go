@@ -21,7 +21,7 @@ const (
     present int = 1950
     
     lightGrey 	= lipgloss.Color("#949494")
-    dullRed	= lipgloss.Color("#bc3838")
+    dullRed	= lipgloss.Color("#ea6962")
 )
 
 const (
@@ -30,7 +30,10 @@ const (
 )
 
 var (
-    headerStyle	= lipgloss.NewStyle().Foreground(lightGrey)
+    headerStyle	= lipgloss.NewStyle().
+    Foreground(lightGrey).
+    Italic(true)
+    commentStyle = lipgloss.NewStyle().Foreground(lightGrey).Faint(true)
     inputStyle	= lipgloss.NewStyle().Foreground(dullRed)
 
 )
@@ -228,22 +231,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // This 'renders' renders the UI
 func (m model) View() string {
     s := fmt.Sprintf(
-`%s
+` %s
 
     %s
     %s %s
 
     %s %s
-
-%s
+    
+ %s
 `,
-	headerStyle.Render("archaeodate"),
+	headerStyle.Render("ArchæoDate - A date converter for BP dates"),
 	inputStyle.Render("Enter Date"),
 	m.inputs[dateIn].View(),
 	m.inputs[systemIn].View(),
 	inputStyle.Render("Result:"),
 	m.result,
-	headerStyle.Render("Press Esc to quit."),
+	commentStyle.Render("Press Esc to quit."),
     ) + "\n"
 
     //send to UI
